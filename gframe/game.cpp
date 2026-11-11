@@ -855,7 +855,7 @@ void Game::Initialize() {
 	btnSpectatorSwap->setVisible(false);
 	//chain buttons
 	btnChainIgnore = AlignElementWithParent(env->addButton(Scale(205, 100, 295, 135), 0, BUTTON_CHAIN_IGNORE, gDataManager->GetSysString(1292).data()));
-	btnHandView = AlignElementWithParent(env->addButton(Scale(205, 270, 295, 305), 0, BUTTON_HAND_VIEW, L"Hand: Mine"));
+	btnHandView = AlignElementWithParent(env->addButton(Scale(205, 220, 295, 255), 0, BUTTON_HAND_VIEW, L"Hand: Mine"));
 	btnHandView->setVisible(false);
 	defaultStrings.emplace_back(btnChainIgnore, 1292);
 	btnChainAlways = AlignElementWithParent(env->addButton(Scale(205, 140, 295, 175), 0, BUTTON_CHAIN_ALWAYS, gDataManager->GetSysString(1293).data()));
@@ -873,7 +873,7 @@ void Game::Initialize() {
 	defaultStrings.emplace_back(btnShuffle, 1307);
 	btnShuffle->setVisible(false);
 	//cancel or finish
-	btnCancelOrFinish = AlignElementWithParent(env->addButton(Scale(205, 230, 295, 265), 0, BUTTON_CANCEL_OR_FINISH, gDataManager->GetSysString(1295).data()));
+	btnCancelOrFinish = AlignElementWithParent(env->addButton(Scale(205, 260, 295, 295), 0, BUTTON_CANCEL_OR_FINISH, gDataManager->GetSysString(1295).data()));
 	defaultStrings.emplace_back(btnCancelOrFinish, 1295);
 	btnCancelOrFinish->setVisible(false);
 	//leave/surrender/exit
