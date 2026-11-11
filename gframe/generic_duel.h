@@ -43,6 +43,9 @@ public:
 	void RefreshMzone(uint8_t player, uint32_t flag = 0x3981fff);
 	void RefreshSzone(uint8_t player, uint32_t flag = 0x3f81fff);
 	void RefreshHand(uint8_t player, uint32_t flag = 0x3781fff | QUERY_DUELIST);
+	// Team play: send each Deck card's duelist tag (no codes) and refresh both Extra Decks,
+	// so clients can draw one pile per duelist
+	void RefreshTeamPiles();
 	void RefreshGrave(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshExtra(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshLocation(uint8_t player, uint32_t flag, uint8_t location);

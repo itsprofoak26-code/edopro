@@ -108,6 +108,12 @@ public:
 	void RefreshAllCards();
 	// Team play: whether a hand card is shown under this client's hand view toggle
 	bool IsHandCardShown(const ClientCard* pcard) const;
+	// Team play: Deck/Extra Deck are drawn as one pile per duelist. Duelist 0 (red) uses the zone,
+	// duelist 1 (blue) sits one card further out, away from the middle of the field.
+	static bool IsTeamPlay();
+	static float TeamPileShift(float zone_left, float zone_right);
+	static uint32_t TeamColor(uint8_t duelist); // ARGB
+	static size_t TeamPileCount(const std::vector<ClientCard*>& pile, uint8_t duelist, bool faceup_only = false);
 	void RefreshHandHitboxes();
 
 	void GetChainDrawCoordinates(uint8_t controler, uint8_t location, uint32_t sequence, irr::core::vector3df* t);

@@ -321,7 +321,7 @@ void ClientField::UpdateFieldCard(uint8_t controler, uint8_t location, const uin
 			pcard->UpdateInfo(query);
 	}
 	// team play: duelist tags may have just arrived, so re-lay out the hand split
-	if(location == LOCATION_HAND && (mainGame->dInfo.duel_params & DUEL_TEAM_PLAY)) {
+	if((location & (LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA)) && IsTeamPlay()) {
 		for(auto& pcard : *lst)
 			if(pcard && !pcard->is_moving)
 				pcard->UpdateDrawCoordinates(true);
@@ -676,6 +676,23 @@ void ClientField::ReplaySwap() {
 	}
 	disabled_field = (disabled_field >> 16) | (disabled_field << 16);
 }
+bool ClientField::IsTeamPlay() {
+	return (mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) != 0;
+}
+float ClientField::TeamPileShift(float zone_left, float zone_right) {
+	const float centre = (zone_left + zone_right) / 2;
+	return centre < 4.0f ? -0.9f : 0.9f;
+}
+uint32_t ClientField::TeamColor(uint8_t duelist) {
+	return duelist == 0 ? 0xffe03a3a : 0xff3a78f0;
+}
+size_t ClientField::TeamPileCount(const std::vector<ClientCard*>& pile, uint8_t duelist, bool faceup_only) {
+	size_t count = 0;
+	for(const auto* pcard : pile)
+		if(pcard && pcard->duelist == duelist && (!faceup_only || (pcard->position & POS_FACEUP)))
+			++count;
+	return count;
+}
 bool ClientField::IsHandCardShown(const ClientCard* pcard) const {
 	const auto& info = mainGame->dInfo;
 	// Only our own team's hand is filtered, and only for a team-play duelist (not observers or replays)
@@ -864,14 +881,28 @@ void ClientField::GetCardDrawCoordinates(ClientCard* pcard, irr::core::vector3df
 			if(location == LOCATION_MZONE && pcard->position & POS_DEFENSE)
 				r->Y = irr::core::PI + 0.001f;
 		}
+		// Team play: Deck/Extra Deck cards stack in their duelist's pile; duelist 1's pile sits
+		// one card further out
+		const bool team_pile = IsTeamPlay() && (location & (LOCATION_DECK | LOCATION_EXTRA)) && pcard->duelist < 2;
+		if(team_pile && pcard->duelist == 1)
+			t->X += TeamPileShift(pos[0].Pos.X, pos[1].Pos.X);
 		switch(location) {
 			case LOCATION_DECK:
 			case LOCATION_GRAVE:
 			case LOCATION_REMOVED:
 			case LOCATION_EXTRA:
 			case LOCATION_SKILL: {
-				if(!gGameConfig->topdown_view)
-					t->Z += 0.01f * sequence;
+				if(!gGameConfig->topdown_view) {
+					size_t height = sequence;
+					if(team_pile) {
+						const auto& pile = location == LOCATION_DECK ? deck[controler] : extra[controler];
+						height = 0;
+						for(size_t i = 0; i < pile.size() && i < static_cast<size_t>(sequence); ++i)
+							if(pile[i] && pile[i]->duelist == pcard->duelist)
+								++height;
+					}
+					t->Z += 0.01f * height;
+				}
 				break;
 			}
 			case LOCATION_OVERLAY: {

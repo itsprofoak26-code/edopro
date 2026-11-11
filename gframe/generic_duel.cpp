@@ -832,6 +832,7 @@ void GenericDuel::BeforeParsing(const CoreUtils::Packet& packet, [[maybe_unused]
 		RefreshSzone(1);
 		RefreshHand(0);
 		RefreshHand(1);
+		RefreshTeamPiles();
 		record_last = true;
 		break;
 	}
@@ -1173,6 +1174,16 @@ void GenericDuel::AfterParsing(const CoreUtils::Packet& packet, [[maybe_unused]]
 	const auto message = packet.message;
 	int player;
 	const auto* pbuf = packet.data();
+	if(team_play) {
+		switch(message) {
+		case MSG_DRAW: case MSG_MOVE: case MSG_SHUFFLE_DECK: case MSG_SHUFFLE_EXTRA:
+		case MSG_CONFIRM_DECKTOP: case MSG_DECK_TOP: case MSG_SWAP_GRAVE_DECK: case MSG_REVERSE_DECK:
+			RefreshTeamPiles();
+			break;
+		default:
+			break;
+		}
+	}
 	switch(message) {
 	case MSG_SHUFFLE_HAND:
 	case MSG_DRAW: {
@@ -1422,6 +1433,14 @@ void GenericDuel::RefreshMzone(uint8_t player, uint32_t flag) {
 }
 void GenericDuel::RefreshSzone(uint8_t player, uint32_t flag) {
 	RefreshLocation(player, flag, LOCATION_SZONE);
+}
+void GenericDuel::RefreshTeamPiles() {
+	if(!team_play)
+		return;
+	for(uint8_t p = 0; p < 2; ++p) {
+		RefreshLocation(p, QUERY_DUELIST, LOCATION_DECK);
+		RefreshExtra(p);
+	}
 }
 void GenericDuel::RefreshHand(uint8_t player, uint32_t flag) {
 	RefreshLocation(player, flag, LOCATION_HAND);

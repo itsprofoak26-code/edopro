@@ -388,6 +388,11 @@ void Game::DrawCard(ClientCard* pcard) {
 		driver->setMaterial(matManager.mCard);
 		driver->drawVertexPrimitiveList(matManager.vCardBack, 4, matManager.iRectangle, 2);
 	}
+	if(ClientField::IsTeamPlay() && pcard->duelist < 2 && (pcard->location & (LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA))) {
+		// Team play: whose hand/Deck/Extra Deck the card is in (red = duelist 1, blue = duelist 2)
+		const bool front = (pcard->location == LOCATION_HAND && pcard->code) || (pcard->position & POS_FACEUP);
+		DrawSelectionLine(front ? matManager.vCardOutline : matManager.vCardOutliner, false, 2, irr::video::SColor(ClientField::TeamColor(pcard->duelist)));
+	}
 	if(pcard->is_selectable && (pcard->location & 0xe)) {
 		irr::video::SColor outline_color = skin::DUELFIELD_SELECTABLE_CARD_OUTLINE_VAL;
 		if((pcard->location == LOCATION_HAND && pcard->code) || ((pcard->location & 0xc) && (pcard->position & POS_FACEUP)))
@@ -634,12 +639,38 @@ void Game::DrawMisc() {
 			if (pcard && (pcard->type & TYPE_PENDULUM) && !pcard->equipTarget)
 				DrawPendScale(pcard);
 		}
+		if(ClientField::IsTeamPlay()) {
+			// One count per duelist pile; duelist 1's pile sits one card further out
+			for(uint8_t d = 0; d < 2; ++d) {
+				auto shifted = [d](const irr::video::S3DVertex* zone, irr::video::S3DVertex* out) {
+					const float dx = d == 1 ? ClientField::TeamPileShift(zone[0].Pos.X, zone[1].Pos.X) : 0.0f;
+					for(int i = 0; i < 4; ++i) {
+						out[i] = zone[i];
+						out[i].Pos.X += dx;
+					}
+				};
+				irr::video::S3DVertex quad[4];
+				const auto extra_count = ClientField::TeamPileCount(dField.extra[p], d);
+				if(extra_count) {
+					const auto faceup = ClientField::TeamPileCount(dField.extra[p], d, true);
+					const auto str = faceup ? epro::format(L"{}({})", extra_count, faceup) : epro::format(L"{}", extra_count);
+					shifted(matManager.getExtra()[p], quad);
+					DrawStackIndicator(str, quad, (p == 1));
+				}
+				const auto deck_count = ClientField::TeamPileCount(dField.deck[p], d);
+				if(deck_count) {
+					shifted(matManager.getDeck()[p], quad);
+					DrawStackIndicator(gDataManager->GetNumString(deck_count), quad, (p == 1));
+				}
+			}
+		} else {
 		if (dField.extra[p].size()) {
 			const auto str = (dField.extra_p_count[p]) ? epro::format(L"{}({})", dField.extra[p].size(), dField.extra_p_count[p]) : epro::format(L"{}", dField.extra[p].size());
 			DrawStackIndicator(str, matManager.getExtra()[p], (p == 1));
 		}
 		if (dField.deck[p].size())
 			DrawStackIndicator(gDataManager->GetNumString(dField.deck[p].size()), matManager.getDeck()[p], (p == 1));
+		}
 		if (dField.grave[p].size())
 			DrawStackIndicator(gDataManager->GetNumString(dField.grave[p].size()), matManager.getGrave()[p], (p == 1));
 		if (dField.remove[p].size())
