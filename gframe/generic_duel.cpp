@@ -596,6 +596,12 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	replay_stream.clear();
 	time_limit[0] = time_limit[1] = host_info.time_limit ? (host_info.time_limit + 5) : 0;
 	uint64_t opt = (((uint64_t)host_info.duel_flag_low) | ((uint64_t)host_info.duel_flag_high) << 32);
+	// Team play needs exactly 2 duelists per team and no relay
+	team_play = (opt & DUEL_TEAM_PLAY) && !relay && players.home.size() == 2 && players.opposing.size() == 2;
+	if(!team_play)
+		opt &= ~((uint64_t)DUEL_TEAM_PLAY);
+	team_prompt_open = -1;
+	awaiting_team_sync.clear();
 	if(host_info.no_shuffle_deck)
 		opt |= ((uint64_t)DUEL_PSEUDO_SHUFFLE);
 	OCG_Player team = { host_info.start_lp, host_info.start_hand, host_info.draw_count };
@@ -665,8 +671,8 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	}
 	card_info.team = 1;
 	card_info.con = 1;
-	auto idxinc = [relay=relay, size= static_cast<int>(players.opposing.size())](int i)->int {
-		if(relay)
+	auto idxinc = [relay=relay, team_play=team_play, size= static_cast<int>(players.opposing.size())](int i)->int {
+		if(relay || team_play)
 			return i;
 		return (i + size - 1) % size;
 	};
@@ -719,6 +725,16 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	packets_cache.emplace_back(startbuf, 18);
 	startbuf[1] = 0;
 	replay_stream.emplace_back(startbuf, 17);
+	if(team_play) {
+		// Each duelist's index in their team matches the index their deck was loaded with
+		for(uint8_t team = 0; team < 2; ++team) {
+			auto& members = TeamOf(team);
+			for(size_t j = 0; j < members.size(); ++j) {
+				uint8_t info[2] = { MSG_TEAM_INFO, static_cast<uint8_t>(j) };
+				NetServer::SendBufferToPlayer(members[j].player, STOC_GAME_MSG, info, sizeof(info));
+			}
+		}
+	}
 	PseudoRefreshDeck(0);
 	PseudoRefreshDeck(1);
 	RefreshExtra(0);
@@ -792,6 +808,8 @@ void GenericDuel::Surrender(DuelPlayer* dp) {
 	}
 }
 #define SEND(to) NetServer::SendCoreUtilsPacketToPlayer(to, STOC_GAME_MSG, packet)
+// Prompts and private info: to the active duelist, or in team play to both duelists of the team
+#define SEND_TEAM(team) do { 	if(team_play) { 		SEND(nullptr); 		for(auto& team_dueler : TeamOf(team)) 			NetServer::ReSendToPlayer(team_dueler); 	} else { 		SEND(cur_player[team]); 	} } while(0)
 void GenericDuel::BeforeParsing(const CoreUtils::Packet& packet, [[maybe_unused]] int& return_value, [[maybe_unused]] bool& record, bool& record_last) {
 	const auto* pbuf = packet.data();
 	switch(packet.message) {
@@ -848,7 +866,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 		case 2:
 		case 3:
 		case 5: {
-			SEND(cur_player[player]);
+			SEND_TEAM(player);
 			record = false;
 			break;
 		}
@@ -882,7 +900,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 	case MSG_SELECT_IDLECMD: {
 		player = BufferIO::Read<uint8_t>(pbuf);
 		WaitforResponse(player);
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		record = false;
 		return_value = 1;
 		break;
@@ -917,7 +935,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 	case MSG_ANNOUNCE_NUMBER: {
 		player = BufferIO::Read<uint8_t>(pbuf);
 		WaitforResponse(player);
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		record = false;
 		return_value = 1;
 		break;
@@ -934,7 +952,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 				BufferIO::Write<uint32_t>(pbufw, 0);
 		}
 		WaitforResponse(player);
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		record = false;
 		return_value = 1;
 		break;
@@ -952,7 +970,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 				BufferIO::Write<uint32_t>(pbufw, 0);
 		}
 		WaitforResponse(player);
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		record = false;
 		return_value = 1;
 		break;
@@ -977,7 +995,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 				BufferIO::Write<uint32_t>(pbufw, 0);
 		}
 		WaitforResponse(player);
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		record = false;
 		return_value = 1;
 		break;
@@ -994,7 +1012,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 				ResendToAll();
 				packets_cache.push_back(packet);
 			} else {
-				SEND(cur_player[player]);
+				SEND_TEAM(player);
 			}
 		} else {
 			SEND(nullptr);
@@ -1093,7 +1111,7 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 	}
 	case MSG_MISSED_EFFECT: {
 		player = pbuf[0];
-		SEND(cur_player[player]);
+		SEND_TEAM(player);
 		break;
 	}
 	case MSG_TAG_SWAP: {
@@ -1286,6 +1304,20 @@ void GenericDuel::GetResponse(DuelPlayer* dp, void* pdata, uint32_t len) {
 	last_replay.WriteData(pdata, len);
 	pduel->DuelSetResponse(pdata, len);
 	GetAtPos(dp->type).player->state = 0xff;
+	if(team_play) {
+		// First answer wins: close the prompt for the teammate too
+		const uint8_t team = dp->type < players.home_size ? 0 : 1;
+		static constexpr uint8_t taken = MSG_TEAM_PROMPT_TAKEN;
+		team_prompt_open = -1;
+		for(auto& teammate : TeamOf(team)) {
+			if(teammate.player == dp)
+				continue;
+			// Only CTOS_TEAM_SYNC is accepted from them now, so a stale answer is dropped
+			teammate.player->state = CTOS_TEAM_SYNC;
+			awaiting_team_sync.insert(teammate.player);
+			NetServer::SendPacketToPlayer(teammate.player, STOC_GAME_MSG, taken);
+		}
+	}
 	/*if(host_info.time_limit) {
 		int resp_type = dp->type < players.home_size ? 0 : 1;
 		if(time_limit[resp_type] >= grace_period)
@@ -1326,10 +1358,18 @@ void GenericDuel::WaitforResponse(uint8_t playerid) {
 	last_response = playerid;
 	static constexpr uint8_t msg = MSG_WAITING;
 	NetServer::SendPacketToPlayer(nullptr, STOC_GAME_MSG, msg);
-	IteratePlayers([&player=cur_player[playerid]](DuelPlayer* dueler) {
-		if(dueler != player)
+	if(team_play) {
+		// Everyone except the prompted team is told to wait
+		for(auto& dueler : TeamOf(1 - playerid))
 			NetServer::ReSendToPlayer(dueler);
-	});
+		for(auto& obs : observers)
+			NetServer::ReSendToPlayer(obs);
+	} else {
+		IteratePlayers([&player=cur_player[playerid]](DuelPlayer* dueler) {
+			if(dueler != player)
+				NetServer::ReSendToPlayer(dueler);
+		});
+	}
 	if(host_info.time_limit) {
 		STOC_TimeLimit sctl;
 		sctl.player = playerid;
@@ -1338,7 +1378,22 @@ void GenericDuel::WaitforResponse(uint8_t playerid) {
 		IteratePlayers(NetServer::ReSendToPlayer);
 		grace_period = 0;
 	}
-	cur_player[playerid]->state = CTOS_RESPONSE;
+	if(team_play) {
+		team_prompt_open = static_cast<int8_t>(playerid);
+		for(auto& dueler : TeamOf(playerid)) {
+			if(!awaiting_team_sync.count(dueler.player))
+				dueler.player->state = CTOS_RESPONSE;
+		}
+	} else {
+		cur_player[playerid]->state = CTOS_RESPONSE;
+	}
+}
+void GenericDuel::TeamSync(DuelPlayer* dp) {
+	if(!team_play || !awaiting_team_sync.erase(dp))
+		return;
+	// Their client is now in step with the server: let them answer any prompt open for their team
+	const uint8_t team = dp->type < players.home_size ? 0 : 1;
+	dp->state = (team_prompt_open == team) ? CTOS_RESPONSE : 0xff;
 }
 void GenericDuel::TimeConfirm([[maybe_unused]] DuelPlayer* dp) {
 	return;
@@ -1372,6 +1427,8 @@ void GenericDuel::RefreshLocation(uint8_t player, uint32_t flag, uint8_t locatio
 	BufferIO::insert_value<uint8_t>(buffer, player);
 	BufferIO::insert_value<uint8_t>(buffer, location);
 	uint32_t len = 0;
+	if(team_play)
+		flag |= QUERY_DUELIST; // clients need each hand card's duelist tag to split the team hand
 	OCG_QueryInfo info{ flag, player, location };
 	auto* buff = static_cast<uint8_t*>(pduel->DuelQueryLocation(&len, &info));
 	if(len == 0)
@@ -1400,6 +1457,8 @@ void GenericDuel::RefreshSingle(uint8_t player, uint8_t location, uint8_t sequen
 	BufferIO::insert_value<uint8_t>(buffer, location);
 	BufferIO::insert_value<uint8_t>(buffer, sequence);
 	uint32_t len = 0;
+	if(team_play)
+		flag |= QUERY_DUELIST;
 	OCG_QueryInfo info{ flag, player, location, sequence };
 	auto* buff = static_cast<uint8_t*>(pduel->DuelQuery(&len, &info));
 	if(buff == nullptr)

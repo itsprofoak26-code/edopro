@@ -44,6 +44,7 @@ void Query::Parse(const uint8_t*& current, bool legacy_race_size) {
 			case QUERY_RSCALE: PARSE(rscale);
 			case QUERY_IS_HIDDEN: PARSE(is_hidden);
 			case QUERY_COVER: PARSE(cover);
+			case QUERY_DUELIST: PARSE(duelist);
 			case QUERY_REASON_CARD: {
 				reason_card = ReadLocInfo(current, false);
 				break;
@@ -184,6 +185,7 @@ void Query::GenerateBuffer(std::vector<uint8_t>& buffer, bool is_for_public_buff
 			case QUERY_RSCALE: SET(rscale);
 			case QUERY_IS_HIDDEN: SET(is_hidden);
 			case QUERY_COVER: SET(cover);
+			case QUERY_DUELIST: SET(duelist);
 			case QUERY_REASON_CARD:
 			case QUERY_EQUIP_CARD: {
 				auto& info = (cur_flag == QUERY_REASON_CARD) ? reason_card : equip_card;
@@ -232,7 +234,7 @@ bool Query::IsPublicQuery(uint32_t to_check_flag) const {
 }
 
 size_t Query::GetFlagSize(uint32_t to_check_flag) const {
-	static constexpr auto uint8_queries = QUERY_OWNER | QUERY_IS_PUBLIC | QUERY_IS_HIDDEN;
+	static constexpr auto uint8_queries = QUERY_OWNER | QUERY_IS_PUBLIC | QUERY_IS_HIDDEN | QUERY_DUELIST;
 	static constexpr auto uint32_queries = QUERY_CODE | QUERY_POSITION | QUERY_ALIAS | QUERY_TYPE
 		| QUERY_LEVEL | QUERY_RANK | QUERY_ATTRIBUTE | QUERY_ATTACK
 		| QUERY_DEFENSE | QUERY_BASE_ATTACK | QUERY_BASE_DEFENSE | QUERY_REASON

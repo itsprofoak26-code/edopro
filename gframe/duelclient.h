@@ -89,6 +89,8 @@ public:
 		return SetResponse<int32_t>(respI);
 	}
 	static void SendResponse();
+	static void ClearPromptUI();
+	static void DismissTeamPrompt(); // team play
 	static void SendPacketToServer(uint8_t proto) {
 		if(!client_bev)
 			return;

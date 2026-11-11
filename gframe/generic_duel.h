@@ -32,6 +32,7 @@ public:
 	int Analyze(CoreUtils::Packet packet) override;
 	void GetResponse(DuelPlayer* dp, void* pdata, uint32_t len) override;
 	void TimeConfirm(DuelPlayer* dp) override;
+	void TeamSync(DuelPlayer* dp) override;
 	void EndDuel() override;
 
 	void BeforeParsing(const CoreUtils::Packet& packet, int& return_value, bool& record, bool& record_last);
@@ -41,7 +42,7 @@ public:
 	void WaitforResponse(uint8_t player);
 	void RefreshMzone(uint8_t player, uint32_t flag = 0x3981fff);
 	void RefreshSzone(uint8_t player, uint32_t flag = 0x3f81fff);
-	void RefreshHand(uint8_t player, uint32_t flag = 0x3781fff);
+	void RefreshHand(uint8_t player, uint32_t flag = 0x3781fff | QUERY_DUELIST);
 	void RefreshGrave(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshExtra(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshLocation(uint8_t player, uint32_t flag, uint8_t location);
@@ -142,6 +143,14 @@ protected:
 	Replay last_replay;
 	Replay new_replay;
 	bool relay;
+	// Team play: both duelists of a team receive every prompt; the first answer wins
+	bool team_play{ false };
+	// Team play: the team (0/1) with an open prompt, or -1
+	int8_t team_prompt_open{ -1 };
+	// Team play: duelists told their prompt was taken, until they confirm with CTOS_TEAM_SYNC.
+	// Any answer they sent before that confirmation is stale and must be dropped.
+	std::set<DuelPlayer*> awaiting_team_sync;
+	std::vector<duelist>& TeamOf(uint8_t team) { return team == 0 ? players.home : players.opposing; }
 	int best_of;
 	uint32_t match_kill;
 	bool swapped;

@@ -34,6 +34,7 @@ void ClientCard::UpdateInfo(const CoreUtils::Query& query) {
 	CHECK_AND_SET(QUERY_OWNER, owner);
 	CHECK_AND_SET(QUERY_STATUS, status);
 	CHECK_AND_SET(QUERY_COVER, cover);
+	CHECK_AND_SET(QUERY_DUELIST, duelist);
 	if(query.flag & QUERY_CODE)
 		SetCode(query.code);
 	if(query.flag & QUERY_POSITION) {

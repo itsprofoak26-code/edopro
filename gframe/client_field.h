@@ -106,6 +106,8 @@ public:
 	void ShowSelectOption(uint64_t select_hint = 0, bool should_lock = true);
 	void ReplaySwap();
 	void RefreshAllCards();
+	// Team play: whether a hand card is shown under this client's hand view toggle
+	bool IsHandCardShown(const ClientCard* pcard) const;
 	void RefreshHandHitboxes();
 
 	void GetChainDrawCoordinates(uint8_t controler, uint8_t location, uint32_t sequence, irr::core::vector3df* t);

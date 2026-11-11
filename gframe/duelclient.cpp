@@ -255,7 +255,9 @@ catch(...) { what = def; }
 				TOI(sizes.side.max, mainGame->ebSideMax->getText(), 15);
 			}
 #undef TOI
-			if(mainGame->btnRelayMode->isPressed())
+			if(mainGame->btnTeamPlay->isPressed())
+				cscg.info.duel_flag_high |= static_cast<uint32_t>(DUEL_TEAM_PLAY >> 32);
+			else if(mainGame->btnRelayMode->isPressed())
 				cscg.info.duel_flag_low |= DUEL_RELAY;
 			if(cscg.info.no_shuffle_deck)
 				cscg.info.duel_flag_low |= DUEL_PSEUDO_SHUFFLE;
@@ -428,6 +430,22 @@ void DuelClient::HandleSTOCPacketLanAsync(const std::vector<uint8_t>& data) {
 		break;
 	}
 	case STOC_GAME_MSG: {
+		if(len > 2 && pdata[0] == MSG_TEAM_INFO) {
+			// Team play: which duelist of our team we are
+			std::lock_guard<epro::mutex> lock(mainGame->gMutex);
+			mainGame->dInfo.team_duelist = pdata[1];
+			mainGame->dInfo.team_hand_view = 0;
+			mainGame->UpdateHandViewButton();
+			mainGame->dField.RefreshAllCards();
+			break;
+		}
+		if(len > 1 && pdata[0] == MSG_TEAM_PROMPT_TAKEN) {
+			// Team play: our teammate answered the open prompt first
+			analyzeMutex.lock();
+			DismissTeamPrompt();
+			analyzeMutex.unlock();
+			break;
+		}
 		analyzeMutex.lock();
 		answered = false;
 		ClientAnalyze(pdata, static_cast<uint32_t>(len - 1));
@@ -4270,9 +4288,40 @@ void DuelClient::SwapField() {
 	}
 }
 
+void DuelClient::DismissTeamPrompt() {
+	// If we had already answered, that answer is stale and the server drops it.
+	if(!answered.exchange(true)) {
+		std::lock_guard<epro::mutex> lock(mainGame->gMutex);
+		ClearPromptUI();
+		for(auto* window : { mainGame->wQuery, mainGame->wOptions, mainGame->wPosSelect, mainGame->wCardSelect,
+		                     mainGame->wANNumber, mainGame->wANCard, mainGame->wANAttribute, mainGame->wANRace,
+		                     mainGame->wFTSelect, mainGame->wCmdMenu }) {
+			if(window->isVisible())
+				mainGame->HideElement(window);
+		}
+		mainGame->stHintMsg->setText(L"Your teammate answered");
+		mainGame->stHintMsg->setVisible(true);
+	}
+	mainGame->dInfo.time_player = 2;
+	SendPacketToServer(CTOS_TEAM_SYNC);
+}
 void DuelClient::SendResponse() {
 	if(answered.exchange(true))
 		return;
+	ClearPromptUI();
+	if(mainGame->dInfo.isSingleMode) {
+		SingleMode::SetResponse(response_buf.data(), response_buf.size());
+		SingleMode::singleSignal.Set();
+	} else if (!mainGame->dInfo.isReplay) {
+		if(replay_stream.size())
+			replay_stream.pop_back();
+		/*if(mainGame->dInfo.time_player == 0)
+			SendPacketToServer(CTOS_TIME_CONFIRM);*/
+		mainGame->dInfo.time_player = 2;
+		SendBufferToServer(CTOS_RESPONSE, response_buf.data(), response_buf.size());
+	}
+}
+void DuelClient::ClearPromptUI() {
 	auto& msg = mainGame->dInfo.curMsg;
 	switch(msg) {
 	case MSG_SELECT_BATTLECMD:
@@ -4325,17 +4374,6 @@ void DuelClient::SendResponse() {
 		mainGame->dField.selectsum_all.clear();
 		break;
 	}
-	}
-	if(mainGame->dInfo.isSingleMode) {
-		SingleMode::SetResponse(response_buf.data(), response_buf.size());
-		SingleMode::singleSignal.Set();
-	} else if (!mainGame->dInfo.isReplay) {
-		if(replay_stream.size())
-			replay_stream.pop_back();
-		/*if(mainGame->dInfo.time_player == 0)
-			SendPacketToServer(CTOS_TIME_CONFIRM);*/
-		mainGame->dInfo.time_player = 2;
-		SendBufferToServer(CTOS_RESPONSE, response_buf.data(), response_buf.size());
 	}
 }
 
@@ -4646,6 +4684,8 @@ void DuelClient::ReplayPrompt(bool local_stream) {
 	mainGame->btnChainAlways->setVisible(false);
 	mainGame->btnChainWhenAvail->setVisible(false);
 	mainGame->btnCancelOrFinish->setVisible(false);
+	mainGame->btnHandView->setVisible(false);
+	mainGame->dInfo.team_duelist = 0xff;
 	auto now = std::time(nullptr);
 	mainGame->PopupSaveWindow(gDataManager->GetSysString(1340), epro::format(L"{:%Y-%m-%d %H-%M-%S}", epro::localtime(now)), gDataManager->GetSysString(1342));
 	mainGame->replaySignal.Wait(lock);

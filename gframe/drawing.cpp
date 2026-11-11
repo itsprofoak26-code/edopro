@@ -337,7 +337,8 @@ void Game::DrawCards() {
 		for(auto& pcard : dField.deck[p])
 			DrawCard(pcard);
 		for(auto& pcard : dField.hand[p])
-			DrawCard(pcard);
+			if(dField.IsHandCardShown(pcard))
+				DrawCard(pcard);
 		for(auto& pcard : dField.grave[p])
 			DrawCard(pcard);
 		for(auto& pcard : dField.remove[p])

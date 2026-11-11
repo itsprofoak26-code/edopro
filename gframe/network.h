@@ -243,6 +243,7 @@ public:
 	virtual void Surrender(DuelPlayer* dp) = 0;
 	virtual void GetResponse(DuelPlayer* dp, void* pdata, uint32_t len) = 0;
 	virtual void TimeConfirm(DuelPlayer* dp) = 0;
+	virtual void TeamSync(DuelPlayer*) {}
 	virtual void EndDuel() = 0;
 
 public:
@@ -282,6 +283,8 @@ public:
 #define CTOS_SURRENDER		0x14
 #define CTOS_TIME_CONFIRM	0x15
 #define CTOS_CHAT			0x16
+// Team play: client confirms it closed a prompt its teammate already answered
+#define CTOS_TEAM_SYNC		0x17
 #define CTOS_HS_TODUELIST	0x20
 #define CTOS_HS_TOOBSERVER	0x21
 #define CTOS_HS_READY		0x22

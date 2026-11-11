@@ -88,6 +88,7 @@ private:
 	loc_info equip_card;
 	uint8_t is_hidden;
 	uint32_t cover;
+	uint8_t duelist; // team play
 	std::vector<loc_info> target_cards;
 	std::vector<uint32_t> overlay_cards;
 	std::vector<uint32_t> counters;

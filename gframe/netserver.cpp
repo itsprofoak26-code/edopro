@@ -318,6 +318,12 @@ void NetServer::HandleCTOSPacket(DuelPlayer* dp, uint8_t* data, uint32_t len) {
 		duel_mode->TimeConfirm(dp);
 		break;
 	}
+	case CTOS_TEAM_SYNC: {
+		if(!dp->game || !duel_mode->pduel)
+			return;
+		duel_mode->TeamSync(dp);
+		break;
+	}
 	case CTOS_CHAT: {
 		if(!dp->game)
 			return;

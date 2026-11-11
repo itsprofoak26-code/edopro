@@ -855,6 +855,8 @@ void Game::Initialize() {
 	btnSpectatorSwap->setVisible(false);
 	//chain buttons
 	btnChainIgnore = AlignElementWithParent(env->addButton(Scale(205, 100, 295, 135), 0, BUTTON_CHAIN_IGNORE, gDataManager->GetSysString(1292).data()));
+	btnHandView = AlignElementWithParent(env->addButton(Scale(205, 270, 295, 305), 0, BUTTON_HAND_VIEW, L"Hand: Mine"));
+	btnHandView->setVisible(false);
 	defaultStrings.emplace_back(btnChainIgnore, 1292);
 	btnChainAlways = AlignElementWithParent(env->addButton(Scale(205, 140, 295, 175), 0, BUTTON_CHAIN_ALWAYS, gDataManager->GetSysString(1293).data()));
 	defaultStrings.emplace_back(btnChainAlways, 1293);
@@ -1176,6 +1178,9 @@ void Game::PopulateGameHostWindows() {
 		defaultStrings.emplace_back(btnRelayMode, 1247);
 		btnRelayMode->setIsPushButton(true);
 		btnRelayMode->setPressed(gGameConfig->relayDuel);
+		btnTeamPlay = env->addButton(Scale(325, 95, 370, 120), tDuelSettings, -1, L"Team");
+		btnTeamPlay->setIsPushButton(true);
+		btnTeamPlay->setToolTipText(L"Team Play: in 2v2, both teammates play at the same time with their own hand, Deck and Extra Deck");
 		defaultStrings.emplace_back(env->addStaticText(gDataManager->GetSysString(1237).data(), Scale(20, 100, 320, 120), false, false, tDuelSettings), 1237);
 		ebTimeLimit = env->addEditBox(WStr(gGameConfig->timeLimit), Scale(140, 95, 220, 120), true, tDuelSettings, EDITBOX_NUMERIC);
 		ebTimeLimit->setTextAlignment(irr::gui::EGUIA_CENTER, irr::gui::EGUIA_CENTER);
@@ -2753,8 +2758,10 @@ void Game::UpdateRepoInfo(const GitRepo* repo, RepoGui* grepo) {
 		auto script_subdirs = Utils::FindSubfolders(Utils::ToPathString(repo->script_path), 2);
 		script_dirs.insert(script_dirs.begin(), std::make_move_iterator(script_subdirs.begin()), std::make_move_iterator(script_subdirs.end()));
 		pic_dirs.insert(pic_dirs.begin(), Utils::ToPathString(repo->pics_path));
-		if(repo->has_core)
-			cores_to_load.insert(cores_to_load.begin(), Utils::ToPathString(repo->core_path));
+		// Team-play build: never swap in a repo's prebuilt ocgcore. It lacks DUEL_TEAM_PLAY,
+		// so it would silently run team games as tag duels. Always use our own ./ocgcore.dll.
+		/*if(repo->has_core)
+			cores_to_load.insert(cores_to_load.begin(), Utils::ToPathString(repo->core_path));*/
 		auto data_path = Utils::ToPathString(repo->data_path);
 		auto lflist_path = Utils::ToPathString(repo->lflist_path);
 		if(gdeckManager->LoadLFListSingle(data_path + EPRO_TEXT("lflist.conf")) || gdeckManager->LoadLFListFolder(lflist_path)) {
@@ -3039,6 +3046,7 @@ void Game::CloseDuelWindow() {
 	btnChainAlways->setVisible(false);
 	btnChainWhenAvail->setVisible(false);
 	btnCancelOrFinish->setVisible(false);
+	btnHandView->setVisible(false);
 	btnShuffle->setVisible(false);
 	wChat->setVisible(false);
 	lstLog->clear();
@@ -4030,6 +4038,11 @@ void Game::ApplyLocale(size_t index, bool forced) {
 	} else
 		gGameConfig->locale = EPRO_TEXT("en");
 	ReloadElementsStrings();
+}
+void Game::UpdateHandViewButton() {
+	static constexpr const wchar_t* labels[] = { L"Hand: Mine", L"Hand: Partner", L"Hand: Both" };
+	btnHandView->setText(labels[dInfo.team_hand_view % 3]);
+	btnHandView->setVisible(dInfo.team_duelist < 2 && (dInfo.duel_params & DUEL_TEAM_PLAY) && !dInfo.isReplay);
 }
 
 }

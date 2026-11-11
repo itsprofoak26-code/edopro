@@ -320,6 +320,12 @@ void ClientField::UpdateFieldCard(uint8_t controler, uint8_t location, const uin
 		if(pcard)
 			pcard->UpdateInfo(query);
 	}
+	// team play: duelist tags may have just arrived, so re-lay out the hand split
+	if(location == LOCATION_HAND && (mainGame->dInfo.duel_params & DUEL_TEAM_PLAY)) {
+		for(auto& pcard : *lst)
+			if(pcard && !pcard->is_moving)
+				pcard->UpdateDrawCoordinates(true);
+	}
 }
 void ClientField::ClearCommandFlag() {
 	auto ClearFlag = [](const std::vector<ClientCard*>& map) { for(auto& pcard : map) pcard->cmdFlag = 0; };
@@ -670,6 +676,19 @@ void ClientField::ReplaySwap() {
 	}
 	disabled_field = (disabled_field >> 16) | (disabled_field << 16);
 }
+bool ClientField::IsHandCardShown(const ClientCard* pcard) const {
+	const auto& info = mainGame->dInfo;
+	// Only our own team's hand is filtered, and only for a team-play duelist (not observers or replays)
+	if(!(info.duel_params & DUEL_TEAM_PLAY) || info.team_duelist > 1 || info.isReplay)
+		return true;
+	if(pcard->location != LOCATION_HAND || pcard->controler != 0)
+		return true;
+	switch(info.team_hand_view) {
+	case 0: return pcard->duelist == info.team_duelist; // my hand
+	case 1: return pcard->duelist != info.team_duelist; // partner's hand
+	default: return true;                                // both
+	}
+}
 void ClientField::RefreshAllCards() {
 	auto refresh = [](ClientCard* const& pcard) {
 		if(pcard) {
@@ -880,13 +899,30 @@ void ClientField::GetCardDrawCoordinates(ClientCard* pcard, irr::core::vector3df
 			t->Y -= 0.16f;
 			t->Z += 0.656f - 0.5f;
 		};
-		const auto count = hand[controler].size();
+		auto count = hand[controler].size();
+		// Team play: only shown cards take a slot. Duelist 0's cards come first, then duelist 1's,
+		// so with both hands shown each hand is its own group.
+		size_t hand_slot = sequence;
+		if(mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) {
+			size_t shown = 0, first_count = 0, before = 0;
+			for(auto* hcard : hand[controler]) {
+				if(!IsHandCardShown(hcard))
+					continue;
+				++shown;
+				if(hcard->duelist == 0)
+					++first_count;
+				if(hcard != pcard && hcard->duelist == pcard->duelist && hcard->sequence < pcard->sequence)
+					++before;
+			}
+			count = std::max<size_t>(shown, 1);
+			hand_slot = (pcard->duelist == 0) ? before : first_count + before;
+		}
 		const size_t max = (6 - gGameConfig->topdown_view - three_columns * 2);
-		const float xoff1 = (5.5f - 0.8f * count) / 2.0f + sequence * (gGameConfig->topdown_view ? 0.73f : 0.8f);
+		const float xoff1 = (5.5f - 0.8f * count) / 2.0f + hand_slot * (gGameConfig->topdown_view ? 0.73f : 0.8f);
 		float val = three_columns ? 2.4f : 4.0f;
 		if(gGameConfig->topdown_view)
 			val -= 0.35f;
-		float xoff2 = (sequence * val) / (count - 1);
+		float xoff2 = (hand_slot * val) / (count - 1);
 		if(three_columns) xoff2 += 0.8f;
 		auto SetXCoord = [&] {
 			if(controler == 0) {

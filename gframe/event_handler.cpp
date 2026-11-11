@@ -182,6 +182,13 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 				}
 				break;
 			}
+			case BUTTON_HAND_VIEW: {
+				// Team play: cycle my hand -> partner's hand -> both
+				mainGame->dInfo.team_hand_view = (mainGame->dInfo.team_hand_view + 1) % 3;
+				mainGame->UpdateHandViewButton();
+				mainGame->dField.RefreshAllCards();
+				break;
+			}
 			case BUTTON_CHAIN_IGNORE:
 			case BUTTON_CHAIN_ALWAYS:
 			case BUTTON_CHAIN_WHENAVAIL: {
@@ -2441,7 +2448,12 @@ inline irr::core::vector3df MouseToField(const irr::core::vector2d<irr::s32>& mo
 	return MouseToPlane(mouse, { vec[0].Pos, vec[1].Pos, vec[2].Pos });
 }
 
-bool CheckHand(const irr::core::vector2d<irr::s32>& mouse, const std::vector<ClientCard*>& hand) {
+bool CheckHand(const irr::core::vector2d<irr::s32>& mouse, const std::vector<ClientCard*>& all_cards) {
+	// Team play: cards of the hand that is toggled off can't be hovered or clicked
+	std::vector<ClientCard*> hand;
+	for(auto* pcard : all_cards)
+		if(mainGame->dField.IsHandCardShown(pcard))
+			hand.push_back(pcard);
 	if(hand.empty()) return false;
 	irr::core::recti rect{ hand.front()->hand_collision.UpperLeftCorner, hand.back()->hand_collision.LowerRightCorner };
 	if(!rect.isValid())
@@ -2456,7 +2468,7 @@ void ClientField::GetHoverField(const irr::core::vector2d<irr::s32>& mouse) {
 		hovered_controler = 0;
 		hovered_location = LOCATION_HAND;
 		for(auto it = hand[0].rbegin(); it != hand[0].rend(); it++) {
-			if((*it)->hand_collision.isPointInside(mouse)) {
+			if(IsHandCardShown(*it) && (*it)->hand_collision.isPointInside(mouse)) {
 				hovered_sequence = (*it)->sequence;
 				return;
 			}
@@ -2466,7 +2478,7 @@ void ClientField::GetHoverField(const irr::core::vector2d<irr::s32>& mouse) {
 		hovered_controler = 1;
 		hovered_location = LOCATION_HAND;
 		for(auto it = hand[1].begin(); it != hand[1].end(); it++) {
-			if((*it)->hand_collision.isPointInside(mouse)) {
+			if(IsHandCardShown(*it) && (*it)->hand_collision.isPointInside(mouse)) {
 				hovered_sequence = (*it)->sequence;
 				return;
 			}

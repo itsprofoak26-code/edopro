@@ -53,6 +53,7 @@ public:
 	uint32_t reason;
 	uint32_t select_seq;
 	uint8_t owner;
+	uint8_t duelist{ 0 }; // team play: whose hand/Deck/Extra Deck this card is in
 	uint8_t controler;
 	uint32_t location;
 	uint32_t sequence;

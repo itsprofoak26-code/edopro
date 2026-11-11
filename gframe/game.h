@@ -86,6 +86,10 @@ struct DuelInfo {
 	int startlp;
 	int duel_field;
 	uint64_t duel_params;
+	// Team play: this client's duelist index in its team (0xff = not a team-play duelist, e.g. observer)
+	uint8_t team_duelist{ 0xff };
+	// Team play hand view: 0 = my hand, 1 = partner's hand, 2 = both
+	uint8_t team_hand_view{ 0 };
 	int turn;
 	uint8_t curMsg;
 	int team1;
@@ -206,6 +210,8 @@ struct host_creation_panel_elements {
 	irr::gui::IGUIWindow* wCreateHost;
 	irr::gui::IGUIComboBox* cbHostLFList;
 	irr::gui::IGUIButton* btnRelayMode;
+	irr::gui::IGUIButton* btnTeamPlay; // team play: both teammates active at once
+	irr::gui::IGUIButton* btnHandView; // team play: cycles my hand / partner hand / both
 	irr::gui::IGUIComboBox* cbMatchMode;
 	irr::gui::IGUIComboBox* cbRule;
 	irr::gui::IGUIEditBox* ebTimeLimit;
@@ -537,6 +543,8 @@ public:
 	void DrawGUI();
 	void DrawSpec();
 	void DrawBackImage(irr::video::ITexture* texture, bool resized);
+	// Team play: refresh the hand-view toggle label and visibility
+	void UpdateHandViewButton();
 	void ShowElement(irr::gui::IGUIElement* element, int autoframe = 0);
 	void HideElement(irr::gui::IGUIElement* element, bool set_action = false);
 	void PopupElement(irr::gui::IGUIElement* element, int hideframe = 0);
