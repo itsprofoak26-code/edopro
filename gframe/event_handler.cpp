@@ -412,7 +412,7 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 					}
 					case LOCATION_EXTRA: {
 						for(size_t i = 0; i < extra[command_controler].size(); ++i)
-							if(extra[command_controler][i]->cmdFlag & COMMAND_ACTIVATE)
+							if(InPile(extra[command_controler][i], command_pile_duelist) && (extra[command_controler][i]->cmdFlag & COMMAND_ACTIVATE))
 								selectable_cards.push_back(extra[command_controler][i]);
 						break;
 					}
@@ -487,7 +487,7 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 					}
 					case LOCATION_EXTRA: {
 						for(size_t i = 0; i < extra[command_controler].size(); ++i)
-							if(extra[command_controler][i]->cmdFlag & COMMAND_SPSUMMON)
+							if(InPile(extra[command_controler][i], command_pile_duelist) && (extra[command_controler][i]->cmdFlag & COMMAND_SPSUMMON))
 								selectable_cards.push_back(extra[command_controler][i]);
 						break;
 					}
@@ -590,8 +590,9 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 				}
 				case LOCATION_EXTRA: {
 					for(int32_t i = (int32_t)extra[command_controler].size() - 1; i >= 0 ; --i)
-						selectable_cards.push_back(extra[command_controler][i]);
-					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), extra[command_controler].size()).data());
+						if(InPile(extra[command_controler][i], command_pile_duelist))
+							selectable_cards.push_back(extra[command_controler][i]);
+					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), selectable_cards.size()).data());
 					break;
 				}
 				}
@@ -1189,8 +1190,9 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 					if(extra[hovered_controler].size() == 0)
 						break;
 					for(int32_t i = (int32_t)extra[hovered_controler].size() - 1; i >= 0 ; --i)
-						selectable_cards.push_back(extra[hovered_controler][i]);
-					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), extra[hovered_controler].size()).data());
+						if(InPile(extra[hovered_controler][i], hovered_pile_duelist))
+							selectable_cards.push_back(extra[hovered_controler][i]);
+					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), selectable_cards.size()).data());
 					break;
 				}
 				}
@@ -1231,8 +1233,9 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 					if (extra[hovered_controler].size() == 0)
 						break;
 					for (int32_t i = (int32_t)extra[hovered_controler].size() - 1; i >= 0; --i)
-						selectable_cards.push_back(extra[hovered_controler][i]);
-					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), extra[hovered_controler].size()).data());
+						if (InPile(extra[hovered_controler][i], hovered_pile_duelist))
+							selectable_cards.push_back(extra[hovered_controler][i]);
+					mainGame->wCardSelect->setText(epro::format(L"{}({})", gDataManager->GetSysString(1006), selectable_cards.size()).data());
 					break;
 				}
 				}
@@ -1242,6 +1245,7 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 			}
 			command_controler = hovered_controler;
 			command_location = hovered_location;
+			command_pile_duelist = hovered_pile_duelist;
 			command_sequence = hovered_sequence;
 			switch(mainGame->dInfo.curMsg) {
 			case MSG_WAITING: {
@@ -1329,7 +1333,8 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 					if(extra[hovered_controler].size() == 0)
 						break;
 					for(size_t i = 0; i < extra[hovered_controler].size(); ++i)
-						command_flag |= extra[hovered_controler][i]->cmdFlag;
+						if(InPile(extra[hovered_controler][i], hovered_pile_duelist))
+							command_flag |= extra[hovered_controler][i]->cmdFlag;
 					command_flag |= COMMAND_LIST;
 					list_command = 1;
 					ShowMenu(command_flag, x, y);
@@ -1548,8 +1553,11 @@ bool ClientField::OnEvent(const irr::SEvent& event) {
 						mcard = remove[hovered_controler].back();
 					}
 				} else if(hovered_location == LOCATION_EXTRA) {
-					if(extra[hovered_controler].size()) {
-						mcard = extra[hovered_controler].back();
+					for(auto it = extra[hovered_controler].rbegin(); it != extra[hovered_controler].rend(); ++it) {
+						if(InPile(*it, hovered_pile_duelist)) {
+							mcard = *it;
+							break;
+						}
 					}
 				} else if(hovered_location == LOCATION_DECK) {
 					if(deck[hovered_controler].size())
@@ -2455,33 +2463,42 @@ bool CheckHand(const irr::core::vector2d<irr::s32>& mouse, const std::vector<Cli
 		if(mainGame->dField.IsHandCardShown(pcard))
 			hand.push_back(pcard);
 	if(hand.empty()) return false;
-	irr::core::recti rect{ hand.front()->hand_collision.UpperLeftCorner, hand.back()->hand_collision.LowerRightCorner };
-	if(!rect.isValid())
-		rect = { hand.back()->hand_collision.UpperLeftCorner, hand.front()->hand_collision.LowerRightCorner };
+	// Bounding box of every shown card (in team play, list order is not screen order)
+	irr::core::recti rect = hand.front()->hand_collision;
+	for(auto* pcard : hand)
+		rect.addInternalPoint(pcard->hand_collision.UpperLeftCorner), rect.addInternalPoint(pcard->hand_collision.LowerRightCorner);
 	return rect.isPointInside(mouse);
+}
+// The shown hand card under the mouse that is drawn on top (highest Z), or nullptr
+static ClientCard* TopHandCardAt(const irr::core::vector2d<irr::s32>& mouse, const std::vector<ClientCard*>& hand) {
+	ClientCard* best = nullptr;
+	for(auto* pcard : hand) {
+		if(!mainGame->dField.IsHandCardShown(pcard) || !pcard->hand_collision.isPointInside(mouse))
+			continue;
+		if(!best || pcard->curPos.Z > best->curPos.Z)
+			best = pcard;
+	}
+	return best;
 }
 
 void ClientField::GetHoverField(const irr::core::vector2d<irr::s32>& mouse) {
 	const int three_columns = mainGame->dInfo.HasFieldFlag(DUEL_3_COLUMNS_FIELD);
 	const int not_separate_pzones = !mainGame->dInfo.HasFieldFlag(DUEL_SEPARATE_PZONE);
+	hovered_pile_duelist = 0xff;
 	if(CheckHand(mouse, hand[0])) {
 		hovered_controler = 0;
 		hovered_location = LOCATION_HAND;
-		for(auto it = hand[0].rbegin(); it != hand[0].rend(); it++) {
-			if(IsHandCardShown(*it) && (*it)->hand_collision.isPointInside(mouse)) {
-				hovered_sequence = (*it)->sequence;
-				return;
-			}
+		if(auto* pcard = TopHandCardAt(mouse, hand[0])) {
+			hovered_sequence = pcard->sequence;
+			return;
 		}
 		hovered_location = 0;
 	} else if(CheckHand(mouse, hand[1])) {
 		hovered_controler = 1;
 		hovered_location = LOCATION_HAND;
-		for(auto it = hand[1].begin(); it != hand[1].end(); it++) {
-			if(IsHandCardShown(*it) && (*it)->hand_collision.isPointInside(mouse)) {
-				hovered_sequence = (*it)->sequence;
-				return;
-			}
+		if(auto* pcard = TopHandCardAt(mouse, hand[1])) {
+			hovered_sequence = pcard->sequence;
+			return;
 		}
 		hovered_location = 0;
 	} else {
@@ -2489,10 +2506,25 @@ void ClientField::GetHoverField(const irr::core::vector2d<irr::s32>& mouse) {
 		const auto& boardx = coords.X;
 		const auto& boardy = coords.Y;
 		hovered_location = 0;
+		if(IsTeamPlay()) {
+			for(uint8_t p = 0; p < 2; ++p) {
+				const auto* zone = matManager.getExtra()[p];
+				const float dx = TeamPileShift(zone[0].Pos.X, zone[1].Pos.X);
+				const float x0 = std::min(zone[0].Pos.X, zone[1].Pos.X) + dx, x1 = std::max(zone[0].Pos.X, zone[1].Pos.X) + dx;
+				const float y0 = std::min(zone[0].Pos.Y, zone[2].Pos.Y), y1 = std::max(zone[0].Pos.Y, zone[2].Pos.Y);
+				if(boardx >= x0 && boardx <= x1 && boardy >= y0 && boardy <= y1) {
+					hovered_controler = p;
+					hovered_location = LOCATION_EXTRA;
+					hovered_pile_duelist = 1;
+					return;
+				}
+			}
+		}
 		if(boardx >= matManager.getExtra()[0][0].Pos.X && boardx <= matManager.getExtra()[0][1].Pos.X) {
 			if(boardy >= matManager.getExtra()[0][0].Pos.Y && boardy <= matManager.getExtra()[0][2].Pos.Y) {
 				hovered_controler = 0;
 				hovered_location = LOCATION_EXTRA;
+				hovered_pile_duelist = IsTeamPlay() ? 0 : 0xff;
 			} else if(boardy >= matManager.getSzone()[0][5][0].Pos.Y && boardy <= matManager.getSzone()[0][5][2].Pos.Y) {//field
 				hovered_controler = 0;
 				hovered_location = LOCATION_SZONE;
@@ -2567,6 +2599,7 @@ void ClientField::GetHoverField(const irr::core::vector2d<irr::s32>& mouse) {
 			} else if(boardy >= matManager.getExtra()[1][2].Pos.Y && boardy <= matManager.getExtra()[1][0].Pos.Y) {
 				hovered_controler = 1;
 				hovered_location = LOCATION_EXTRA;
+				hovered_pile_duelist = IsTeamPlay() ? 0 : 0xff;
 			} else if(not_separate_pzones && boardy >= matManager.getSkill()[1][2].Pos.Y && boardy <= matManager.getSkill()[1][0].Pos.Y) {
 				hovered_controler = 1;
 				hovered_location = LOCATION_SKILL;

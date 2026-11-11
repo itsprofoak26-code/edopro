@@ -676,6 +676,9 @@ void ClientField::ReplaySwap() {
 	}
 	disabled_field = (disabled_field >> 16) | (disabled_field << 16);
 }
+bool ClientField::InPile(const ClientCard* pcard, uint8_t pile) {
+	return pile > 1 || pcard->duelist == pile;
+}
 bool ClientField::IsTeamPlay() {
 	return (mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) != 0;
 }
@@ -988,7 +991,7 @@ void ClientField::GetCardDrawCoordinates(ClientCard* pcard, irr::core::vector3df
 
 		};
 		const float zoff1 = gGameConfig->topdown_view ? 3.0f : 0.5f;
-		const float zoff2 = (controler == 0) ? (0.001f * sequence) : (-0.001f * sequence);
+		const float zoff2 = (controler == 0) ? (0.001f * hand_slot) : (-0.001f * hand_slot);
 		SetXCoord();
 		SetYCoord();
 		t->Z = zoff1 + zoff2;
