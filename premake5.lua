@@ -66,6 +66,11 @@ newoption {
 	description = "API endpoint to check for updates from"
 }
 newoption {
+	trigger = "teamplay-version",
+	value = "number",
+	description = "Team Play build number, shown in the client"
+}
+newoption {
 	trigger = "no-core",
 	description = "Ignore the ocgcore subproject and only generate the solution for ygoprodll"
 }

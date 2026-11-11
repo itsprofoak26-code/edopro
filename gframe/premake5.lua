@@ -42,7 +42,15 @@ local ygopro_config=function(static_core)
 		defines { "DISCORD_APP_ID=" .. _OPTIONS["discord"] }
 	end
 	if _OPTIONS["update-url"] then
-		defines { "UPDATE_URL=" .. _OPTIONS["update-url"] }
+		-- Quote the URL here, so callers do not have to escape quotes through their shell
+		local url = _OPTIONS["update-url"]
+		if url:sub(1, 1) ~= '"' then
+			url = '"' .. url .. '"'
+		end
+		defines { "UPDATE_URL=" .. url }
+	end
+	if _OPTIONS["teamplay-version"] then
+		defines { "TEAMPLAY_VERSION=" .. _OPTIONS["teamplay-version"] }
 	end
 	if _OPTIONS["bundled-font"] then
 		defines "YGOPRO_USE_BUNDLED_FONT"
