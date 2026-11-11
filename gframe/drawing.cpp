@@ -484,7 +484,30 @@ void Game::DrawMisc() {
 		driver->drawVertexPrimitiveList(matManager.vActivate, 4, matManager.iRectangle, 2);
 	};
 
+	// Team play: one glow per duelist pile, at that pile's position and height
+	auto drawact_piles = [&](const irr::video::S3DVertex* zone, const std::vector<ClientCard*>& pile, const bool (&act)[2]) {
+		for(uint8_t d = 0; d < 2; ++d) {
+			if(!act[d])
+				continue;
+			irr::video::S3DVertex quad[4];
+			const float dx = d == 1 ? ClientField::TeamPileShift(zone[0].Pos.X, zone[1].Pos.X) : 0.0f;
+			for(int i = 0; i < 4; ++i) {
+				quad[i] = zone[i];
+				quad[i].Pos.X += dx;
+			}
+			drawact(quad, ClientField::TeamPileCount(pile, d) * 0.01f + 0.02f);
+		}
+	};
 	for(int p = 0; p < 2; p++) {
+		if(ClientField::IsTeamPlay()) {
+			drawact_piles(matManager.getDeck()[p], dField.deck[p], dField.deck_act_pile[p]);
+			drawact_piles(matManager.getExtra()[p], dField.extra[p], dField.extra_act_pile[p]);
+			// the GY and banished zones are shared: unchanged
+			if(dField.grave_act[p])
+				drawact(matManager.getGrave()[p], dField.grave[p].size() * 0.01f + 0.02f);
+			if(dField.remove_act[p])
+				drawact(matManager.getRemove()[p], dField.remove[p].size() * 0.01f + 0.02f);
+		} else {
 		if(dField.deck_act[p])
 			drawact(matManager.getDeck()[p], dField.deck[p].size() * 0.01f + 0.02f);
 		if(dField.grave_act[p])
@@ -493,6 +516,7 @@ void Game::DrawMisc() {
 			drawact(matManager.getRemove()[p], dField.remove[p].size() * 0.01f + 0.02f);
 		if(dField.extra_act[p])
 			drawact(matManager.getExtra()[p], dField.extra[p].size() * 0.01f + 0.02f);
+		}
 		if(dField.pzone_act[p])
 			drawact(matManager.getSzone()[p][dInfo.GetPzoneIndex(0)], 0.03f);
 	}

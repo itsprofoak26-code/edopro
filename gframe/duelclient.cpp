@@ -1806,7 +1806,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 				else if (pcard->location == LOCATION_REMOVED)
 					mainGame->dField.remove_act[pcard->controler] = true;
 				else if (pcard->location == LOCATION_EXTRA)
-					mainGame->dField.extra_act[pcard->controler] = true;
+					{ mainGame->dField.extra_act[pcard->controler] = true; mainGame->dField.extra_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 			}
 		}
 		mainGame->dField.attackable_cards.clear();
@@ -1869,7 +1869,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 			switch(pcard->location) {
 			case LOCATION_DECK:
 				pcard->SetCode(code);
-				mainGame->dField.deck_act[pcard->controler] = true;
+				{ mainGame->dField.deck_act[pcard->controler] = true; mainGame->dField.deck_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 				break;
 			case LOCATION_GRAVE:
 				mainGame->dField.grave_act[pcard->controler] = true;
@@ -1878,7 +1878,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 				mainGame->dField.remove_act[pcard->controler] = true;
 				break;
 			case LOCATION_EXTRA:
-				mainGame->dField.extra_act[pcard->controler] = true;
+				{ mainGame->dField.extra_act[pcard->controler] = true; mainGame->dField.extra_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 				break;
 			case LOCATION_SZONE: {
 				if((pcard->type & TYPE_PENDULUM) && !pcard->equipTarget && pcard->sequence == mainGame->dInfo.GetPzoneIndex(0))
@@ -1963,7 +1963,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 				else if (pcard->location == LOCATION_REMOVED)
 					mainGame->dField.remove_act[pcard->controler] = true;
 				else if (pcard->location == LOCATION_EXTRA)
-					mainGame->dField.extra_act[pcard->controler] = true;
+					{ mainGame->dField.extra_act[pcard->controler] = true; mainGame->dField.extra_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 			}
 		}
 		std::lock_guard<epro::mutex> lock(mainGame->gMutex);
@@ -2231,13 +2231,13 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 					pcard->cmdFlag |= COMMAND_ACTIVATE;
 				if(pcard->location == LOCATION_DECK) {
 					pcard->SetCode(code);
-					mainGame->dField.deck_act[pcard->controler] = true;
+					{ mainGame->dField.deck_act[pcard->controler] = true; mainGame->dField.deck_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 				} else if(info.location == LOCATION_GRAVE)
 					mainGame->dField.grave_act[pcard->controler] = true;
 				else if(info.location == LOCATION_REMOVED)
 					mainGame->dField.remove_act[pcard->controler] = true;
 				else if(info.location == LOCATION_EXTRA)
-					mainGame->dField.extra_act[pcard->controler] = true;
+					{ mainGame->dField.extra_act[pcard->controler] = true; mainGame->dField.extra_act_pile[pcard->controler][pcard->duelist & 1] = true; }
 				else if(info.location == LOCATION_OVERLAY)
 					panelmode = true;
 			}

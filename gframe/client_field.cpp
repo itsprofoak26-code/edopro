@@ -35,9 +35,11 @@ ClientField::ClientField() {
 	selectable_field = 0;
 	selected_field = 0;
 	deck_act[0] = deck_act[1] = false;
+	deck_act_pile[0][0] = deck_act_pile[0][1] = deck_act_pile[1][0] = deck_act_pile[1][1] = false;
 	grave_act[0] = grave_act[1] = false;
 	remove_act[0] = remove_act[1] = false;
 	extra_act[0] = extra_act[1] = false;
+	extra_act_pile[0][0] = extra_act_pile[0][1] = extra_act_pile[1][0] = extra_act_pile[1][1] = false;
 	pzone_act[0] = pzone_act[1] = false;
 	conti_act = false;
 	deck_reversed = false;
@@ -102,9 +104,11 @@ void ClientField::Clear() {
 	selectable_field = 0;
 	selected_field = 0;
 	deck_act[0] = deck_act[1] = false;
+	deck_act_pile[0][0] = deck_act_pile[0][1] = deck_act_pile[1][0] = deck_act_pile[1][1] = false;
 	grave_act[0] = grave_act[1] = false;
 	remove_act[0] = remove_act[1] = false;
 	extra_act[0] = extra_act[1] = false;
+	extra_act_pile[0][0] = extra_act_pile[0][1] = extra_act_pile[1][0] = extra_act_pile[1][1] = false;
 	pzone_act[0] = pzone_act[1] = false;
 	conti_act = false;
 	conti_selecting = false;
@@ -338,9 +342,11 @@ void ClientField::ClearCommandFlag() {
 	ClearFlag(attackable_cards);
 	conti_cards.clear();
 	deck_act[0] = deck_act[1] = false;
+	deck_act_pile[0][0] = deck_act_pile[0][1] = deck_act_pile[1][0] = deck_act_pile[1][1] = false;
 	grave_act[0] = grave_act[1] = false;
 	remove_act[0] = remove_act[1] = false;
 	extra_act[0] = extra_act[1] = false;
+	extra_act_pile[0][0] = extra_act_pile[0][1] = extra_act_pile[1][0] = extra_act_pile[1][1] = false;
 	pzone_act[0] = pzone_act[1] = false;
 	conti_act = false;
 }
@@ -359,9 +365,11 @@ void ClientField::ClearChainSelect() {
 	}
 	conti_cards.clear();
 	deck_act[0] = deck_act[1] = false;
+	deck_act_pile[0][0] = deck_act_pile[0][1] = deck_act_pile[1][0] = deck_act_pile[1][1] = false;
 	grave_act[0] = grave_act[1] = false;
 	remove_act[0] = remove_act[1] = false;
 	extra_act[0] = extra_act[1] = false;
+	extra_act_pile[0][0] = extra_act_pile[0][1] = extra_act_pile[1][0] = extra_act_pile[1][1] = false;
 	pzone_act[0] = pzone_act[1] = false;
 	conti_act = false;
 }

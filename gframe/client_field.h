@@ -137,6 +137,9 @@ public:
 	uint32_t hovered_sequence;
 	// Team play: which duelist's Deck/Extra Deck pile is hovered / was clicked (0xff: not a team pile)
 	uint8_t hovered_pile_duelist{ 0xff };
+	// Team play: which duelist's Deck/Extra Deck pile holds an activatable card (for the glow)
+	bool deck_act_pile[2][2]{};
+	bool extra_act_pile[2][2]{};
 	uint8_t command_pile_duelist{ 0xff };
 	static bool InPile(const ClientCard* pcard, uint8_t pile);
 	uint8_t command_controler;
