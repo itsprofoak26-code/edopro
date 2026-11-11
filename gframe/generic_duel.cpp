@@ -726,14 +726,25 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	startbuf[1] = 0;
 	replay_stream.emplace_back(startbuf, 17);
 	if(team_play) {
-		// Each duelist's index in their team matches the index their deck was loaded with
+		// Tell each client which duelist of its team it is (its index matches the index its deck was
+		// loaded with) and every duelist's name, for the duelist-choice prompts.
+		uint8_t info[2 + 4 * 20 * sizeof(uint16_t)]{};
+		info[0] = MSG_TEAM_INFO;
+		for(uint8_t team = 0; team < 2; ++team) {
+			auto& members = TeamOf(team);
+			for(size_t j = 0; j < members.size() && j < 2; ++j)
+				std::memcpy(info + 2 + (team * 2 + j) * 20 * sizeof(uint16_t), members[j].player->name, 20 * sizeof(uint16_t));
+		}
 		for(uint8_t team = 0; team < 2; ++team) {
 			auto& members = TeamOf(team);
 			for(size_t j = 0; j < members.size(); ++j) {
-				uint8_t info[2] = { MSG_TEAM_INFO, static_cast<uint8_t>(j) };
+				info[1] = static_cast<uint8_t>(j);
 				NetServer::SendBufferToPlayer(members[j].player, STOC_GAME_MSG, info, sizeof(info));
 			}
 		}
+		info[1] = 0xff;
+		for(auto& obs : observers)
+			NetServer::SendBufferToPlayer(obs, STOC_GAME_MSG, info, sizeof(info));
 	}
 	PseudoRefreshDeck(0);
 	PseudoRefreshDeck(1);

@@ -154,6 +154,10 @@ public:
 	epro::wstringview GetUppercaseName(uint32_t code) const;
 	epro::wstringview GetUppercaseText(uint32_t code) const;
 	epro::wstringview GetDesc(uint64_t strCode, bool compat) const;
+	// Team play: the duelist-choice strings are filled in at duel start with the duelists' names
+	void SetSysString(uint32_t code, std::wstring val) {
+		_sysStrings.SetMain(code, std::move(val));
+	}
 	inline epro::wstringview GetSysString(uint32_t code)  const {
 		return _sysStrings.GetLocale(code);
 	}

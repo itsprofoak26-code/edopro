@@ -431,8 +431,20 @@ void DuelClient::HandleSTOCPacketLanAsync(const std::vector<uint8_t>& data) {
 	}
 	case STOC_GAME_MSG: {
 		if(len > 2 && pdata[0] == MSG_TEAM_INFO) {
-			// Team play: which duelist of our team we are
+			// Team play: which duelist of our team we are, and every duelist's name
 			std::lock_guard<epro::mutex> lock(mainGame->gMutex);
+			if(len >= 3 + 4 * 20 * sizeof(uint16_t)) {
+				static constexpr const wchar_t* colour[2] = { L"Red", L"Blue" };
+				for(uint32_t i = 0; i < 4; ++i) {
+					uint16_t raw[20];
+					std::memcpy(raw, pdata + 2 + i * 20 * sizeof(uint16_t), sizeof(raw));
+					wchar_t name[20];
+					BufferIO::DecodeUTF16(raw, name, 20);
+					gDataManager->SetSysString(TEAM_DUELIST_DESC + i, epro::format(L"{}: {}", colour[i % 2], name));
+				}
+				gDataManager->SetSysString(TEAM_DUELIST_DESC + 4, L"Choose which of your duelists this applies to");
+				gDataManager->SetSysString(TEAM_DUELIST_DESC + 5, L"Choose which opposing duelist this applies to");
+			}
 			mainGame->dInfo.team_duelist = pdata[1];
 			mainGame->dInfo.team_hand_view = 0;
 			mainGame->UpdateHandViewButton();

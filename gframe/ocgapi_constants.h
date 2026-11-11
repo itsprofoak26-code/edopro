@@ -362,6 +362,11 @@
 
 /* Player Constants */
 #define PLAYER_NONE 2
+/* Team play duelist choice: option/hint descriptions are system strings
+   TEAM_DUELIST_DESC + team*2 + duelist ("Red/Blue: <name>"),
+   TEAM_DUELIST_DESC + 4 ("choose your duelist") and + 5 ("choose an opposing duelist").
+   Clients fill these strings with the duelists' names. */
+#define TEAM_DUELIST_DESC 0xFFF00
 #define DUELIST_ANY 0xff /* team play: no specific duelist requested */
 #define PLAYER_ALL  3
 
