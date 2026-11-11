@@ -88,6 +88,9 @@ struct DuelInfo {
 	uint64_t duel_params;
 	// Team play: this client's duelist index in its team (0xff = not a team-play duelist, e.g. observer)
 	uint8_t team_duelist{ 0xff };
+	std::wstring team_names[2][2];          // team play: names by core team and duelist
+	uint8_t team_actor[2]{ 0xff, 0xff };    // team play: last teammate who answered, per core team
+	bool team_swapped{ false };             // team play: core team 0 is lobby team 2
 	// Team play hand view: 0 = my hand, 1 = partner's hand, 2 = both
 	uint8_t team_hand_view{ 0 };
 	int turn;

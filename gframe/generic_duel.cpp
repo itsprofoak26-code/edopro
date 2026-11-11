@@ -728,8 +728,10 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	if(team_play) {
 		// Tell each client which duelist of its team it is (its index matches the index its deck was
 		// loaded with) and every duelist's name, for the duelist-choice prompts.
-		uint8_t info[2 + 4 * 20 * sizeof(uint16_t)]{};
+		// Layout: MSG_TEAM_INFO, my duelist index, 4 x name[20], teams swapped (core team 0 is lobby team 2)
+		uint8_t info[2 + 4 * 20 * sizeof(uint16_t) + 1]{};
 		info[0] = MSG_TEAM_INFO;
+		info[sizeof(info) - 1] = swapped ? 1 : 0;
 		for(uint8_t team = 0; team < 2; ++team) {
 			auto& members = TeamOf(team);
 			for(size_t j = 0; j < members.size() && j < 2; ++j)
@@ -1331,6 +1333,16 @@ void GenericDuel::GetResponse(DuelPlayer* dp, void* pdata, uint32_t len) {
 		const uint8_t team = dp->type < players.home_size ? 0 : 1;
 		static constexpr uint8_t taken = MSG_TEAM_PROMPT_TAKEN;
 		team_prompt_open = -1;
+		// Tell everyone which teammate acted, for the duel log
+		{
+			auto& members = TeamOf(team);
+			uint8_t actor[3] = { MSG_TEAM_ACTOR, team, 0xff };
+			for(size_t j = 0; j < members.size(); ++j)
+				if(members[j].player == dp)
+					actor[2] = static_cast<uint8_t>(j);
+			NetServer::SendBufferToPlayer(nullptr, STOC_GAME_MSG, actor, sizeof(actor));
+			ResendToAll();
+		}
 		for(auto& teammate : TeamOf(team)) {
 			if(teammate.player == dp)
 				continue;

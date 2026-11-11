@@ -441,7 +441,10 @@ void DuelClient::HandleSTOCPacketLanAsync(const std::vector<uint8_t>& data) {
 					wchar_t name[20];
 					BufferIO::DecodeUTF16(raw, name, 20);
 					gDataManager->SetSysString(TEAM_DUELIST_DESC + i, epro::format(L"{}: {}", colour[i % 2], name));
+					mainGame->dInfo.team_names[i / 2][i % 2] = name;
 				}
+				mainGame->dInfo.team_actor[0] = mainGame->dInfo.team_actor[1] = 0xff;
+				mainGame->dInfo.team_swapped = len >= 4 + 4 * 20 * sizeof(uint16_t) && pdata[2 + 4 * 20 * sizeof(uint16_t)] != 0;
 				gDataManager->SetSysString(TEAM_DUELIST_DESC + 4, L"Choose which of your duelists this applies to");
 				gDataManager->SetSysString(TEAM_DUELIST_DESC + 5, L"Choose which opposing duelist this applies to");
 			}
@@ -449,6 +452,12 @@ void DuelClient::HandleSTOCPacketLanAsync(const std::vector<uint8_t>& data) {
 			mainGame->dInfo.team_hand_view = 0;
 			mainGame->UpdateHandViewButton();
 			mainGame->dField.RefreshAllCards();
+			break;
+		}
+		if(len > 3 && pdata[0] == MSG_TEAM_ACTOR) {
+			// Team play: which teammate's answer the server accepted (labels that team's log lines)
+			if(pdata[1] < 2)
+				mainGame->dInfo.team_actor[pdata[1]] = pdata[2];
 			break;
 		}
 		if(len > 1 && pdata[0] == MSG_TEAM_PROMPT_TAKEN) {
@@ -1308,6 +1317,27 @@ inline bool PlayChant(SoundManager::CHANT sound, uint32_t code) {
 		return gSoundManager->PlayChant(sound, code);
 	return true;
 }
+// Team play: "[Team 1 · Name] " for a core team, using the teammate who last answered for it
+static std::wstring TeamLogPrefix(uint8_t core_team) {
+	const auto& info = mainGame->dInfo;
+	if(!(info.duel_params & DUEL_TEAM_PLAY) || core_team > 1)
+		return {};
+	const int lobby_team = info.team_swapped ? 2 - core_team : core_team + 1;
+	const auto actor = info.team_actor[core_team];
+	if(actor < 2 && !info.team_names[core_team][actor].empty())
+		return epro::format(L"[Team {} \u00b7 {}] ", lobby_team, info.team_names[core_team][actor]);
+	return epro::format(L"[Team {}] ", lobby_team);
+}
+// Team play: add an action to the duel log, prefixed with the team and player. Takes the GUI lock,
+// so call it before the handler locks.
+static void TeamLog(uint8_t core_team, epro::wstringview text, uint32_t code = 0) {
+	if(!(mainGame->dInfo.duel_params & DUEL_TEAM_PLAY))
+		return;
+	auto line = TeamLogPrefix(core_team);
+	line.append(text.data(), text.size());
+	std::lock_guard<epro::mutex> lock(mainGame->gMutex);
+	mainGame->AddLog(line, code);
+}
 inline std::unique_lock<epro::mutex> LockIf() {
 	if(!mainGame->dInfo.isCatchingUp || !mainGame->dInfo.isReplay)
 		return std::unique_lock<epro::mutex>(mainGame->gMutex);
@@ -1445,8 +1475,10 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 		}
 		case HINT_OPSELECTED: {
 			std::wstring text(epro::format(gDataManager->GetSysString(player == 0 ? 1510 : 1512), gDataManager->GetDesc(data, mainGame->dInfo.compat_mode)));
+			// Team play: say which teammate made the choice (player is local; LocalPlayer maps it back)
+			const auto log_text = TeamLogPrefix(mainGame->LocalPlayer(player)) + text;
 			std::unique_lock<epro::mutex> lock(mainGame->gMutex);
-			mainGame->AddLog(text);
+			mainGame->AddLog(log_text);
 			mainGame->stACMessage->setText(text.data());
 			mainGame->PopupElement(mainGame->wACMessage, 20);
 			mainGame->WaitFrameSignal(40, lock);
@@ -3270,8 +3302,11 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 	}
 	case MSG_SET: {
 		Play(SoundManager::SFX::SET);
-		/*const auto code = BufferIO::Read<uint32_t>(pbuf);*/
-		/*CoreUtils::loc_info info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);*/
+		if(mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) {
+			/*const auto code = */BufferIO::Read<uint32_t>(pbuf);
+			const auto info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);
+			TeamLog(info.controler, L"Set a card");
+		}
 		event_string = gDataManager->GetSysString(1601).data();
 		return true;
 	}
@@ -3310,7 +3345,10 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 	}
 	case MSG_SUMMONING: {
 		const auto code = BufferIO::Read<uint32_t>(pbuf);
-		/*CoreUtils::loc_info info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);*/
+		if(mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) {
+			const auto info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);
+			TeamLog(info.controler, epro::format(L"Normal Summoned \"{}\"", gDataManager->GetName(code)), code);
+		}
 		if(!PlayChant(SoundManager::CHANT::SUMMON, code))
 			Play(SoundManager::SFX::SUMMON);
 		if(!mainGame->dInfo.isCatchingUp) {
@@ -3332,7 +3370,13 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 	}
 	case MSG_SPSUMMONING: {
 		const auto code = BufferIO::Read<uint32_t>(pbuf);
-		/*CoreUtils::loc_info info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);*/
+		if(mainGame->dInfo.duel_params & DUEL_TEAM_PLAY) {
+			const auto info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);
+			if(code)
+				TeamLog(info.controler, epro::format(L"Special Summoned \"{}\"", gDataManager->GetName(code)), code);
+			else
+				TeamLog(info.controler, L"Special Summoned a monster");
+		}
 		if(!code || !PlayChant(SoundManager::CHANT::SUMMON, code))
 			Play(SoundManager::SFX::SPECIAL_SUMMON);
 		if(!mainGame->dInfo.isCatchingUp) {
@@ -3356,6 +3400,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 	case MSG_FLIPSUMMONING: {
 		const auto code = BufferIO::Read<uint32_t>(pbuf);
 		CoreUtils::loc_info info = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);
+		TeamLog(info.controler, epro::format(L"Flip Summoned \"{}\"", gDataManager->GetName(code)), code);
 		info.controler = mainGame->LocalPlayer(info.controler);
 		if(!PlayChant(SoundManager::CHANT::SUMMON, code))
 			Play(SoundManager::SFX::FLIP);
@@ -3391,6 +3436,7 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 		const auto cs = CompatRead<uint8_t, uint32_t>(pbuf);
 		const auto desc = CompatRead<uint32_t, uint64_t>(pbuf);
 		/*const auto ct = */CompatRead<uint8_t, uint32_t>(pbuf);
+		TeamLog(info.controler, epro::format(L"activated \"{}\"", gDataManager->GetName(code)), code);
 		ClientCard* pcard = mainGame->dField.GetCard(mainGame->LocalPlayer(info.controler), info.location, info.sequence, info.position);
 		auto lock = LockIf();
 		if(pcard->code != code || (!pcard->is_public && !mainGame->dInfo.compat_mode)) {
@@ -3783,8 +3829,11 @@ int DuelClient::ClientAnalyze(const uint8_t* msg, uint32_t len) {
 	}
 	case MSG_ATTACK: {
 		CoreUtils::loc_info info1 = CoreUtils::ReadLocInfo(pbuf, mainGame->dInfo.compat_mode);
+		const auto attacking_team = info1.controler;
 		info1.controler = mainGame->LocalPlayer(info1.controler);
 		mainGame->dField.attacker = mainGame->dField.GetCard(info1.controler, info1.location, info1.sequence);
+		if(mainGame->dField.attacker)
+			TeamLog(attacking_team, epro::format(L"attacked with \"{}\"", gDataManager->GetName(mainGame->dField.attacker->code)), mainGame->dField.attacker->code);
 		if(!PlayChant(SoundManager::CHANT::ATTACK, mainGame->dField.attacker->code))
 			Play(SoundManager::SFX::ATTACK);
 		if(mainGame->dInfo.isCatchingUp)
