@@ -602,6 +602,7 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 		opt &= ~((uint64_t)DUEL_TEAM_PLAY);
 	team_prompt_open = -1;
 	awaiting_team_sync.clear();
+	team_piles_dirty = false;
 	if(host_info.no_shuffle_deck)
 		opt |= ((uint64_t)DUEL_PSEUDO_SHUFFLE);
 	OCG_Player team = { host_info.start_lp, host_info.start_hand, host_info.draw_count };
@@ -766,6 +767,11 @@ void GenericDuel::Process() {
 			stop = Analyze(std::move(message));
 			if(stop)
 				break;
+		}
+		// Team play: clients now have every message of this batch, so their piles match the engine
+		if(team_piles_dirty && stop != 2) {
+			team_piles_dirty = false;
+			RefreshTeamPiles();
 		}
 	} while(!stop);
 	if(engFlag == OCG_DUEL_STATUS_END || stop == 2)
@@ -1180,7 +1186,7 @@ void GenericDuel::AfterParsing(const CoreUtils::Packet& packet, [[maybe_unused]]
 		switch(message) {
 		case MSG_DRAW: case MSG_MOVE: case MSG_SHUFFLE_DECK: case MSG_SHUFFLE_EXTRA:
 		case MSG_CONFIRM_DECKTOP: case MSG_DECK_TOP: case MSG_SWAP_GRAVE_DECK: case MSG_REVERSE_DECK:
-			RefreshTeamPiles();
+			team_piles_dirty = true;
 			break;
 		default:
 			break;

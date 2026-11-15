@@ -46,6 +46,10 @@ public:
 	// Team play: send each Deck card's duelist tag (no codes) and refresh both Extra Decks,
 	// so clients can draw one pile per duelist
 	void RefreshTeamPiles();
+	// Team play: a Deck/Extra Deck changed in the current message batch. The refresh waits for the
+	// end of the batch: mid-batch the engine is already ahead of what clients have been sent, and
+	// a refresh describing more cards than a client's pile holds would overrun it.
+	bool team_piles_dirty{ false };
 	void RefreshGrave(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshExtra(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshLocation(uint8_t player, uint32_t flag, uint8_t location);
