@@ -603,6 +603,8 @@ void GenericDuel::TPResult(DuelPlayer* dp, uint8_t tp) {
 	team_prompt_open = -1;
 	awaiting_team_sync.clear();
 	team_piles_dirty = false;
+	team_last_prompt_team = -1;
+	team_retries = 0;
 	if(host_info.no_shuffle_deck)
 		opt |= ((uint64_t)DUEL_PSEUDO_SHUFFLE);
 	OCG_Player team = { host_info.start_lp, host_info.start_hand, host_info.draw_count };
@@ -872,6 +874,19 @@ void GenericDuel::Sending(CoreUtils::Packet& packet, int& return_value, bool& re
 	auto* pbuf = packet.data();
 	switch (message) {
 	case MSG_RETRY: {
+		// Team play: with two people answering, a stale click can reach the engine. Ask the team
+		// again (the engine keeps the prompt open) rather than ending the duel; give up after 5.
+		if(team_play && team_last_prompt_team >= 0 && team_retries < 5) {
+			++team_retries;
+			record = false;
+			const uint8_t team = static_cast<uint8_t>(team_last_prompt_team);
+			WaitforResponse(team);
+			NetServer::SendCoreUtilsPacketToPlayer(nullptr, STOC_GAME_MSG, team_last_prompt);
+			for(auto& dueler : TeamOf(team))
+				NetServer::ReSendToPlayer(dueler);
+			return_value = 1;
+			break;
+		}
 		SEND(nullptr);
 		ResendToAll();
 		match_result.push_back(2);
@@ -1323,6 +1338,12 @@ int GenericDuel::Analyze(CoreUtils::Packet packet) {
 	BeforeParsing(packet, return_value, record, record_last);
 	Sending(packet, return_value, record, record_last);
 	AfterParsing(packet, return_value, record, record_last);
+	// Team play: remember the prompt now waiting for an answer, in case the answer is rejected
+	if(team_play && return_value == 1 && packet.message != MSG_RETRY) {
+		team_last_prompt = packet;
+		team_last_prompt_team = static_cast<int8_t>(last_response);
+		team_retries = 0;
+	}
 	if(record)
 		replay_stream.insert(record_last ? replay_stream.end() : replay_stream.begin(), std::move(packetcpy));
 	new_replay.WriteStream(replay_stream);

@@ -50,6 +50,11 @@ public:
 	// end of the batch: mid-batch the engine is already ahead of what clients have been sent, and
 	// a refresh describing more cards than a client's pile holds would overrun it.
 	bool team_piles_dirty{ false };
+	// Team play: the last prompt sent to a team, re-sent if the engine rejects an answer
+	// (MSG_RETRY) instead of ending the duel as a draw like a normal duel does
+	CoreUtils::Packet team_last_prompt;
+	int8_t team_last_prompt_team{ -1 };
+	int team_retries{ 0 };
 	void RefreshGrave(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshExtra(uint8_t player, uint32_t flag = 0x381fff);
 	void RefreshLocation(uint8_t player, uint32_t flag, uint8_t location);

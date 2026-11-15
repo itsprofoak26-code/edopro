@@ -51,6 +51,9 @@ public:
 	static bool try_needed;
 	static bool is_local_host;
 	static std::atomic<bool> answered;
+	// Team play: our prompt was answered by our teammate. Ignore every attempt to answer until the
+	// server sends a new prompt (the old prompt's leftover UI must not answer the next one).
+	static std::atomic<bool> team_prompt_dismissed;
 
 	static void JoinFromDiscord();
 	static bool StartClient(const epro::Address& ip, uint16_t port, uint32_t gameid = 0, bool create_game = true);

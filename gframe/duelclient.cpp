@@ -46,6 +46,7 @@ bufferevent* DuelClient::client_bev = nullptr;
 bool DuelClient::is_closing = false;
 uint64_t DuelClient::select_hint = 0;
 std::wstring DuelClient::event_string;
+std::atomic<bool> DuelClient::team_prompt_dismissed{ false };
 RNG::mt19937 DuelClient::rnd;
 
 ReplayStream DuelClient::replay_stream;
@@ -469,6 +470,13 @@ void DuelClient::HandleSTOCPacketLanAsync(const std::vector<uint8_t>& data) {
 		}
 		analyzeMutex.lock();
 		answered = false;
+		// Team play: a new prompt re-enables answering after our teammate answered the last one
+		if(len > 1) {
+			const uint8_t msg = pdata[0];
+			if((msg >= MSG_SELECT_BATTLECMD && msg <= MSG_SELECT_UNSELECT_CARD) || msg == MSG_ROCK_PAPER_SCISSORS ||
+			   (msg >= MSG_ANNOUNCE_RACE && msg <= MSG_ANNOUNCE_NUMBER))
+				team_prompt_dismissed = false;
+		}
 		ClientAnalyze(pdata, static_cast<uint32_t>(len - 1));
 		analyzeMutex.unlock();
 		break;
@@ -4351,9 +4359,15 @@ void DuelClient::SwapField() {
 
 void DuelClient::DismissTeamPrompt() {
 	// If we had already answered, that answer is stale and the server drops it.
+	team_prompt_dismissed = true;
 	if(!answered.exchange(true)) {
 		std::lock_guard<epro::mutex> lock(mainGame->gMutex);
 		ClearPromptUI();
+		// Leave no clickable prompt state behind: no open prompt, no selectable zones or cards
+		mainGame->dInfo.curMsg = 0;
+		mainGame->dField.selectable_field = 0;
+		mainGame->dField.ClearSelect();
+		mainGame->dField.ClearCommandFlag();
 		for(auto* window : { mainGame->wQuery, mainGame->wOptions, mainGame->wPosSelect, mainGame->wCardSelect,
 		                     mainGame->wANNumber, mainGame->wANCard, mainGame->wANAttribute, mainGame->wANRace,
 		                     mainGame->wFTSelect, mainGame->wCmdMenu }) {
@@ -4367,6 +4381,8 @@ void DuelClient::DismissTeamPrompt() {
 	SendPacketToServer(CTOS_TEAM_SYNC);
 }
 void DuelClient::SendResponse() {
+	if(team_prompt_dismissed)
+		return;
 	if(answered.exchange(true))
 		return;
 	ClearPromptUI();
